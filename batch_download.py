@@ -3,6 +3,7 @@ import argparse
 import multiprocessing
 import numpy as np
 import tools.waymo as wod
+import 
 
 
 def main():
@@ -30,7 +31,9 @@ def main():
     seg_ids = np.random.choice(100, args.num_seg, replace=False)
     seg_ids.sort()
     for seg_id in seg_ids:
+        
         wod.download_and_convert(args, seg_id, labels_dir, images_dir)
+
 
     print("Done")
 

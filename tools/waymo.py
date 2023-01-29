@@ -8,6 +8,7 @@ import cv2
 import os
 import glob
 import argparse
+import multiprocessing
 
 from waymo_open_dataset.utils import frame_utils
 from waymo_open_dataset import dataset_pb2 as open_dataset
@@ -126,7 +127,7 @@ def writeKITTI(filename, bboxes, scores, cls_inds, track_ids=None, classes=None)
     f.close()
 
 
-def download_and_convert(args, seg_id, labels_dir, images_dir, clip_id=0, wod_ver='1_2_0'):
+def download(args, seg_id, labels_dir, images_dir, clip_id=0, wod_ver='1_2_0'):
     url_template = 'gs://waymo_open_dataset_v_{wod_ver}/{split}/{split}_%04d.tar'.format(wod_ver=wod_ver, split=args.split)
     cmd = 'gsutil cp ' + url_template % seg_id + ' ' + args.out_dir
     print(cmd)
@@ -145,6 +146,34 @@ def download_and_convert(args, seg_id, labels_dir, images_dir, clip_id=0, wod_ve
 
     print("Segment %d done"%seg_id)
 
+def convert(args, seg_id, labels_dir, images_dir, clip_id=0):
+
+    os.system('cd %s; tar xf %s_%04d.tar -C %s'%(args.out_dir, args.split, seg_id, segid_dir))
+    tfrecords = sorted(glob.glob('%s/*.tfrecord'%segid_dir))
+    for record in tfrecords:
+        extract_frame(record, f'{labels_dir}/{seg_id}_%05d.txt'%clip_id, f'{images_dir}/{seg_id}_%05d'%clip_id, WAYMO_CLASSES, resize_ratio=args.resize)
+        print("Clip %d done"%clip_id)
+        clip_id += 1
+        os.remove(record)
+
+    print("Segment %d done"%seg_id)
+
+
+def download_and_convert_all(args, wod_ver='1_2_0'):
+    
+    # # Sequential
+    # clip_id = len(glob.glob(f'{labels_dir}/*.txt'))
+    # for seg_id in range(0, num_segs):
+    #     download_and_convert(seg_id, clip_id)
+
+    # Multiprocessing
+    clip_id = len(glob.glob(f'{labels_dir}/*.txt'))
+    processes = 8
+    with multiprocessing.Pool(processes) as pool:
+        processed = pool.map(download_and_convert, range(0, num_segs))
+        
+    wod.download_and_convert(args, seg_id, labels_dir, images_dir)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -162,6 +191,8 @@ def main():
     if not os.path.exists('labels'):
         os.mkdir('labels')
     extract_frame(args.record_path, os.path.join('labels', args.output_id + '.txt'), image_path, WAYMO_CLASSES, resize_ratio=args.resize)
+
+
 
 if __name__ == "__main__":
     main()
